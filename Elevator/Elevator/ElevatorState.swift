@@ -14,37 +14,34 @@ enum Direction {
 }
 
 protocol CabinControl: Observable {
+    var floorButtonPressedStates: [Bool] { get }
+    var floorButtonsEnabled: Bool { get }
+
     func pressFloorInCabin(_ floor: Int)
-    func emergencyStop()
-    var closestFloor: Int { get }
 }
 
-protocol FloorControl: Observable{
-    func callOnFloor(_ floor: Int)
+protocol FloorControl: Observable {
     var closestFloor: Int { get }
     var direction: Direction? { get }
+
+    func callOnFloor(_ floor: Int)
 }
 
 protocol DispatcherControl: Observable {
-    func togglePower()
     var closestFloor: Int { get }
     var direction: Direction? { get }
+
+    func togglePower()
 }
 
 @Observable
-class ElevatorState: CabinControl, FloorControl, DispatcherControl {
+class ElevatorState {
     let minFloor: Int
     let maxFloor: Int
 
     var isPowerOn: Bool {
         queue.sync {
             _isPowerOn
-        }
-    }
-
-    var closestFloor: Int {
-        queue.sync {
-            Int(round(_currentFloor))
         }
     }
 
@@ -66,12 +63,6 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
         }
     }
 
-    var direction: Direction? {
-        queue.sync {
-            _direction
-        }
-    }
-
     private var _direction: Direction?
     private var _isPowerOn = true
     private var _currentFloor = 1.0
@@ -81,61 +72,32 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
     var _floorsPressedInCabin: Set<Int> = []
     var _floorsCalled: Set<Int> = []
 
-    init(minFloor: Int, maxFloor: Int, queue: DispatchQueue = DispatchQueue(label: "elevator.state")) {
+    init(
+        minFloor: Int,
+        maxFloor: Int,
+        queue: DispatchQueue = DispatchQueue(label: "elevator.state")
+    ) {
         self.minFloor = minFloor
         self.maxFloor = maxFloor
         self.queue = queue
     }
 
-    func emergencyStop() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self._isPowerOn = false
-            self._direction = nil
-            self._floorsPressedInCabin.removeAll()
-            self._floorsCalled.removeAll()
-        }
-    }
-
-    func togglePower() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self._isPowerOn.toggle()
-
-            if !self._isPowerOn {
-                self._direction = nil
-                _floorsPressedInCabin.removeAll()
-                _floorsCalled.removeAll()
-            }
-        }
-    }
-
-    func pressFloorInCabin(_ floor: Int) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self._floorsPressedInCabin.insert(floor)
-            self._move()
-        }
-    }
-
-    func callOnFloor(_ floor: Int) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self._floorsCalled.insert(floor)
-            self._move()
-        }
-    }
-
     private func _move() {
         guard self._isPowerOn else { return }
 
-        let nearestPressedFloor = self._nearestPressedFloor(from: self._currentFloor)
-        let nearestCalledFloor = self._nearestCalledFloor(from: self._currentFloor)
+        let nearestPressedFloor = self._nearestPressedFloor(
+            from: self._currentFloor
+        )
+        let nearestCalledFloor = self._nearestCalledFloor(
+            from: self._currentFloor
+        )
 
         switch self._direction {
         case .down:
             // TODO: looks like we need to check that max is actually still down
-            if let floor = [nearestPressedFloor, nearestCalledFloor].compactMap(\.self).max() {
+            if let floor = [nearestPressedFloor, nearestCalledFloor].compactMap(
+                \.self
+            ).max() {
                 self._moveTo(floor: floor)
             }
 
@@ -148,10 +110,16 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
 
         case .none:
             if let nearestPressedFloor {
-                self._direction = _direction(from: _currentFloor, to: nearestPressedFloor)
+                self._direction = _direction(
+                    from: _currentFloor,
+                    to: nearestPressedFloor
+                )
                 self._moveTo(floor: nearestPressedFloor)
             } else if let nearestCalledFloor {
-                self._direction = _direction(from: _currentFloor, to: nearestCalledFloor)
+                self._direction = _direction(
+                    from: _currentFloor,
+                    to: nearestCalledFloor
+                )
                 self._moveTo(floor: nearestCalledFloor)
             }
         }
@@ -165,13 +133,6 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
         self._floorsCalled.remove(floor)
 
         if self._floorsCalled.isEmpty && self._floorsPressedInCabin.isEmpty {
-            self._direction = nil
-        }
-    }
-
-    func stop() {
-        queue.async { [weak self] in
-            guard let self else { return }
             self._direction = nil
         }
     }
@@ -190,7 +151,67 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
         })
     }
 
-    private func _direction(from fromFloor: Double, to toFloor: Int) -> Direction {
+    private func _direction(from fromFloor: Double, to toFloor: Int)
+        -> Direction
+    {
         return fromFloor < Double(toFloor) ? .up : .down
+    }
+}
+
+extension ElevatorState: CabinControl {
+    var floorButtonPressedStates: [Bool] {
+        queue.sync {
+            [minFloor...maxFloor]
+                .map { self._floorsPressedInCabin.contains($0) }
+        }
+    }
+
+    var floorButtonsEnabled: Bool {
+        isPowerOn
+    }
+
+    func pressFloorInCabin(_ floor: Int) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self._floorsPressedInCabin.insert(floor)
+            self._move()
+        }
+    }
+}
+
+extension ElevatorState: FloorControl {
+    var closestFloor: Int {
+        queue.sync {
+            Int(round(_currentFloor))
+        }
+    }
+
+    var direction: Direction? {
+        queue.sync {
+            _direction
+        }
+    }
+
+    func callOnFloor(_ floor: Int) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self._floorsCalled.insert(floor)
+            self._move()
+        }
+    }
+}
+
+extension ElevatorState: DispatcherControl {
+    func togglePower() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self._isPowerOn.toggle()
+
+            if !self._isPowerOn {
+                self._direction = nil
+                _floorsPressedInCabin.removeAll()
+                _floorsCalled.removeAll()
+            }
+        }
     }
 }
