@@ -14,6 +14,9 @@ enum Direction {
 }
 
 protocol CabinControl: Observable {
+    var minFloor: Int { get }
+    var maxFloor: Int { get }
+
     var floorButtonPressedStates: [Bool] { get }
     var floorButtonsEnabled: Bool { get }
 
@@ -28,6 +31,9 @@ protocol FloorControl: Observable {
 }
 
 protocol DispatcherControl: Observable {
+    var isPowerOn: Bool { get }
+    var currentFloor: Double { get }
+
     var closestFloor: Int { get }
     var direction: Direction? { get }
 
@@ -39,38 +45,14 @@ class ElevatorState {
     let minFloor: Int
     let maxFloor: Int
 
-    var isPowerOn: Bool {
-        queue.sync {
-            _isPowerOn
-        }
-    }
-
-    var currentFloor: Double {
-        queue.sync {
-            _currentFloor
-        }
-    }
-
-    var floorsPressedInCabin: Set<Int> {
-        queue.sync {
-            _floorsPressedInCabin
-        }
-    }
-
-    var floorsCalled: Set<Int> {
-        queue.sync {
-            _floorsCalled
-        }
-    }
-
     private var _direction: Direction?
     private var _isPowerOn = true
     private var _currentFloor = 1.0
 
-    private let queue: DispatchQueue
+    private var _floorsPressedInCabin: Set<Int> = []
+    private var _floorsCalled: Set<Int> = []
 
-    var _floorsPressedInCabin: Set<Int> = []
-    var _floorsCalled: Set<Int> = []
+    private let queue: DispatchQueue
 
     init(
         minFloor: Int,
@@ -94,10 +76,13 @@ class ElevatorState {
 
         switch self._direction {
         case .down:
-            // TODO: looks like we need to check that max is actually still down
-            if let floor = [nearestPressedFloor, nearestCalledFloor].compactMap(
-                \.self
-            ).max() {
+            let floors = Set(
+                [nearestPressedFloor, nearestCalledFloor].compactMap(\.self)
+            )
+            if let floor = self._nearestFloor(
+                from: self._currentFloor,
+                in: floors
+            ) {
                 self._moveTo(floor: floor)
             }
 
@@ -137,29 +122,29 @@ class ElevatorState {
         }
     }
 
-    private func _nearestPressedFloor(from currentFloor: Double) -> Int? {
-        return _nearestFloor(from: currentFloor, in: _floorsPressedInCabin)
+    private func _nearestPressedFloor(from floor: Double) -> Int? {
+        return _nearestFloor(from: floor, in: _floorsPressedInCabin)
     }
 
-    private func _nearestCalledFloor(from currentFloor: Double) -> Int? {
-        return _nearestFloor(from: currentFloor, in: _floorsCalled)
+    private func _nearestCalledFloor(from floor: Double) -> Int? {
+        return _nearestFloor(from: floor, in: _floorsCalled)
     }
 
-    private func _nearestFloor(from currentFloor: Double, in floors: Set<Int>)
+    private func _nearestFloor(from floor: Double, in floors: Set<Int>)
         -> Int?
     {
         floors
             .compactMap {
                 switch _direction {
                 case .down:
-                    Double($0) < currentFloor ? $0 : nil
+                    Double($0) < floor ? $0 : nil
                 case .up:
-                    Double($0) > currentFloor ? $0 : nil
+                    Double($0) > floor ? $0 : nil
                 case .none:
                     $0
                 }
             }.min {
-                abs(Double($0) - currentFloor) < abs(Double($1) - currentFloor)
+                abs(Double($0) - floor) < abs(Double($1) - floor)
             }
     }
 
@@ -214,6 +199,18 @@ extension ElevatorState: FloorControl {
 }
 
 extension ElevatorState: DispatcherControl {
+    var currentFloor: Double {
+        queue.sync {
+            _currentFloor
+        }
+    }
+
+    var isPowerOn: Bool {
+        queue.sync {
+            _isPowerOn
+        }
+    }
+
     func togglePower() {
         queue.async { [weak self] in
             guard let self else { return }
