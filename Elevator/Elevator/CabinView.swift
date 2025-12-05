@@ -11,20 +11,22 @@ struct CabinView: View {
     let control: CabinControl
 
     var body: some View {
-        ScrollView {
-            VStack {
-                ForEach(control.floorButtonPressedStates, id: \.self) { button in
-                    Button {
-                        control.pressFloorInCabin(button.floor)
-                    } label: {
-                        Text("\(button.floor)")
+        VStack {
+            Text("Cabin")
+                .font(.title3)
+            
+            ScrollView {
+                VStack(alignment: .trailing, spacing: 8) {
+                    ForEach(control.floorButtonPressedStates, id: \.self) { button in
+                        Button {
+                            control.pressFloorInCabin(button.floor)
+                        } label: {
+                            Text("\(button.floor)")
+                        }
+                        .roundButton(backgroundColor: button.isPressed ? Color.orange : Color.gray)
                     }
-                    .frame(width: 44, height: 44)
-                    .background(button.isPressed ? Color.orange : Color.gray)
-                    .foregroundStyle(Color.white)
-                    .clipShape(Circle())
+                    .disabled(control.floorButtonsDisabled)
                 }
-                .disabled(control.floorButtonsDisabled)
             }
         }
     }

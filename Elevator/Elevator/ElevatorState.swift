@@ -26,14 +26,9 @@ protocol CabinControl: Observable {
 }
 
 protocol FloorControl: Observable {
-    var closestFloor: Int { get }
-    var direction: Direction? { get }
-
-    func callOnFloor(_ floor: Int)
-}
-
-protocol Floors: Observable {
+    var floorButtonsDisabled: Bool { get }
     var floorsCalledStates: [ButtonState] { get }
+    func callOnFloor(_ floor: Int)
 }
 
 protocol DispatcherControl: Observable {
@@ -219,6 +214,17 @@ extension ElevatorState: FloorControl {
             self._move()
         }
     }
+
+    var floorsCalledStates: [ButtonState] {
+        stateLock.withLock {
+            Array(minFloor...maxFloor)
+                .reversed()
+                .map { floor in
+                    let isPressed = self._floorsCalled.contains(floor)
+                    return ButtonState(floor: floor, isPressed: isPressed)
+                }
+        }
+    }
 }
 
 extension ElevatorState: DispatcherControl {
@@ -251,19 +257,6 @@ extension ElevatorState: DispatcherControl {
                 _floorsPressedInCabin.removeAll()
                 _floorsCalled.removeAll()
             }
-        }
-    }
-}
-
-extension ElevatorState: Floors {
-    var floorsCalledStates: [ButtonState] {
-        stateLock.withLock {
-            Array(minFloor...maxFloor)
-                .reversed()
-                .map { floor in
-                    let isPressed = self._floorsCalled.contains(floor)
-                    return ButtonState(floor: floor, isPressed: isPressed)
-                }
         }
     }
 }

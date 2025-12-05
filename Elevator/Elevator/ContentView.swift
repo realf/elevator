@@ -12,25 +12,15 @@ struct ContentView: View {
 
     var body: some View {
         VStack {
-            HStack(spacing: 80) {
-                VStack {
-                    Text("Cabin")
-                    CabinView(control: elevatorState)
-                }
-
-                VStack {
-                    Text("Floors")
-                        .padding(.bottom, 8)
-                    FloorsView(floors: elevatorState, spacing: 13.5)
-                }
+            HStack(spacing: 40) {
+                CabinView(control: elevatorState)
+                Divider()
+                FloorsView(floors: elevatorState)
             }
 
-            Spacer()
+            Divider()
 
-            VStack {
-                Text("Dispatch Room")
-                DispatcherView(control: elevatorState)
-            }
+            DispatcherView(control: elevatorState)
         }
         .padding()
     }

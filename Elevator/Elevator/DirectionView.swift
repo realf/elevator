@@ -12,12 +12,9 @@ struct DirectionView: View {
 
     var body: some View {
         let colors: (up: Color, down: Color) = switch direction {
-        case .up:
-            (.yellow, .gray)
-        case .down:
-            (.gray, .yellow)
-        case nil:
-            (.gray, .gray)
+        case .up: (.orange, .gray)
+        case .down: (.gray, .orange)
+        case nil: (.gray, .gray)
         }
 
         VStack {

@@ -11,6 +11,7 @@ struct FloorView: View {
     let control: FloorControl
     let isCalled: Bool
     let floor: Int
+    let buttonSize = 44.0
 
     static let floorFormatter = {
         let formatter = NumberFormatter()
@@ -19,28 +20,30 @@ struct FloorView: View {
     }()
 
     var body: some View {
-        HStack {
-            DirectionView(direction: control.direction)
-            Text(
-                "Elevator on\nthe \(Self.floorFormatter.string(from: NSNumber(value: control.closestFloor)) ?? "?") floor"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        HStack(spacing: 20) {
+            Text("\(floor)")
+                .font(.body)
 
             Button {
                 if !isCalled {
                     control.callOnFloor(floor)
                 }
             } label: {
-                Text(isCalled ? "Wait" : "Call")
+                Image(systemName: "button.programmable")
             }
-            .buttonStyle(.bordered)
-            .foregroundStyle(Color.primary)
-            .background(
-                isCalled ? Color.orange : Color.gray
-            )
-            .clipShape(Capsule())
+            .roundButton(backgroundColor: isCalled ? Color.orange : Color.gray)
         }
+    }
+}
+
+
+struct BlueButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding()
+            .background(Color(red: 0, green: 0, blue: 0.5))
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
     }
 }
 
