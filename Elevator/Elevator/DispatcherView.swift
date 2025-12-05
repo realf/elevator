@@ -8,18 +8,55 @@
 import SwiftUI
 
 struct DispatcherView: View {
-    let elevatorState: ElevatorState
-    var body: some View {
-        Button {
-            elevatorState.togglePower()
-        } label: {
-            Text("Toggle Power")
-        }
+    let control: DispatcherControl
 
-        Text("Elevator power: \(elevatorState.isPowerOn ? "On" : "Off")")
+    var body: some View {
+        VStack(spacing: 32) {
+            let floorRange =
+                Double(control.minFloor)...Double(control.maxFloor)
+
+                HStack(spacing: 20) {
+                    Group {
+                        Gauge(
+                            value: control.currentFloor,
+                            in: floorRange
+                        ) {
+                            Text("Floor")
+                        } currentValueLabel: {
+                            Text("\(control.closestFloor)")
+                        } minimumValueLabel: {
+                            Text("\(control.minFloor)")
+                        } maximumValueLabel: {
+                            Text("\(control.maxFloor)")
+                        }
+                        .gaugeStyle(.accessoryCircular)
+
+                        DirectionView(direction: control.direction)
+                            .font(.system(size: 28))
+
+
+                        let boltStyle: (name: String, color: Color) = control.isPowerOn
+                        ? ("bolt", Color.green)
+                        : ("bolt.slash", Color.blue)
+
+                        Image(systemName: boltStyle.name)
+                            .foregroundStyle(boltStyle.color)
+                            .font(.system(size: 42))
+                    }
+                }
+
+                Button {
+                    control.togglePower()
+                } label: {
+                    Image(systemName: "power")
+                        .foregroundStyle(Color.red)
+                }
+                .font(.title)
+                .buttonStyle(.bordered)
+        }
     }
 }
 
 #Preview {
-    DispatcherView(elevatorState: ElevatorState(minFloor: 1, maxFloor: 9))
+    DispatcherView(control: ElevatorState(minFloor: 1, maxFloor: 9))
 }

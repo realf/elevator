@@ -8,11 +8,24 @@
 import SwiftUI
 
 struct FloorsView: View {
+    let floors: Floors & FloorControl
+    let spacing: CGFloat
+
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        ScrollView {
+            ForEach(floors.floorsCalledStates, id: \.self) { button in
+                FloorView(
+                    control: floors,
+                    isCalled: button.isPressed,
+                    floor: button.floor
+                )
+                .padding(.bottom, spacing)
+
+            }
+        }
     }
 }
 
 #Preview {
-    FloorsView()
+    FloorsView(floors: ElevatorState(minFloor: 1, maxFloor: 9), spacing: 0)
 }

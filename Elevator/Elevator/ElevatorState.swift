@@ -13,12 +13,14 @@ enum Direction {
     case down
 }
 
-protocol CabinControl: Observable {
-    var minFloor: Int { get }
-    var maxFloor: Int { get }
+struct ButtonState: Hashable {
+    var floor: Int
+    var isPressed: Bool
+}
 
-    var floorButtonPressedStates: [Bool] { get }
-    var floorButtonsEnabled: Bool { get }
+protocol CabinControl: Observable {
+    var floorButtonPressedStates: [ButtonState] { get }
+    var floorButtonsDisabled: Bool { get }
 
     func pressFloorInCabin(_ floor: Int)
 }
@@ -30,11 +32,17 @@ protocol FloorControl: Observable {
     func callOnFloor(_ floor: Int)
 }
 
+protocol Floors: Observable {
+    var floorsCalledStates: [ButtonState] { get }
+}
+
 protocol DispatcherControl: Observable {
     var isPowerOn: Bool { get }
     var currentFloor: Double { get }
 
     var closestFloor: Int { get }
+    var minFloor: Int { get }
+    var maxFloor: Int { get }
     var direction: Direction? { get }
 
     func togglePower()
@@ -156,15 +164,19 @@ class ElevatorState {
 }
 
 extension ElevatorState: CabinControl {
-    var floorButtonPressedStates: [Bool] {
+    var floorButtonPressedStates: [ButtonState] {
         queue.sync {
-            [minFloor...maxFloor]
-                .map { self._floorsPressedInCabin.contains($0) }
+            Array(minFloor...maxFloor)
+                .reversed()
+                .map { floor in
+                    let isPressed = self._floorsPressedInCabin.contains(floor)
+                    return ButtonState(floor: floor, isPressed: isPressed)
+                }
         }
     }
 
-    var floorButtonsEnabled: Bool {
-        isPowerOn
+    var floorButtonsDisabled: Bool {
+        !isPowerOn
     }
 
     func pressFloorInCabin(_ floor: Int) {
@@ -221,6 +233,19 @@ extension ElevatorState: DispatcherControl {
                 _floorsPressedInCabin.removeAll()
                 _floorsCalled.removeAll()
             }
+        }
+    }
+}
+
+extension ElevatorState: Floors {
+    var floorsCalledStates: [ButtonState] {
+        queue.sync {
+            Array(minFloor...maxFloor)
+                .reversed()
+                .map { floor in
+                    let isPressed = self._floorsCalled.contains(floor)
+                    return ButtonState(floor: floor, isPressed: isPressed)
+                }
         }
     }
 }

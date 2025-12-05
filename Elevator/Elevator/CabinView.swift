@@ -8,11 +8,28 @@
 import SwiftUI
 
 struct CabinView: View {
+    let control: CabinControl
+
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        ScrollView {
+            VStack {
+                ForEach(control.floorButtonPressedStates, id: \.self) { button in
+                    Button {
+                        control.pressFloorInCabin(button.floor)
+                    } label: {
+                        Text("\(button.floor)")
+                    }
+                    .frame(width: 44, height: 44)
+                    .background(button.isPressed ? Color.orange : Color.gray)
+                    .foregroundStyle(Color.white)
+                    .clipShape(Circle())
+                }
+                .disabled(control.floorButtonsDisabled)
+            }
+        }
     }
 }
 
 #Preview {
-    CabinView()
+    CabinView(control: ElevatorState(minFloor: -1, maxFloor: 9))
 }
