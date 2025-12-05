@@ -8,11 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    let elevatorState = ElevatorState(
-        minFloor: 1,
-        maxFloor: 9,
-        queue: DispatchQueue(label: "Elevator 1")
-    )
+    let elevatorState: ElevatorState
 
     var body: some View {
         VStack {
@@ -41,5 +37,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(elevatorState: ElevatorState(minFloor: 1, maxFloor: 9))
 }

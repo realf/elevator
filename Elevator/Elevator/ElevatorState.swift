@@ -60,16 +60,12 @@ class ElevatorState {
     private var _floorsPressedInCabin: Set<Int> = []
     private var _floorsCalled: Set<Int> = []
 
-    private let queue: DispatchQueue
+    private let moveStep = 0.1
+    private let stateLock = NSLock()
 
-    init(
-        minFloor: Int,
-        maxFloor: Int,
-        queue: DispatchQueue = DispatchQueue(label: "elevator.state")
-    ) {
+    init(minFloor: Int, maxFloor: Int) {
         self.minFloor = minFloor
         self.maxFloor = maxFloor
-        self.queue = queue
     }
 
     private func _move() {
@@ -119,14 +115,29 @@ class ElevatorState {
     }
 
     private func _moveTo(floor: Int) {
-        // TODO: Increment it sloooowly, checking for power, to animate movement :)
-        self._currentFloor = Double(floor)
+        if abs(self._currentFloor - Double(floor)) < self.moveStep {
+            self._floorsPressedInCabin.remove(floor)
+            self._floorsCalled.remove(floor)
 
-        self._floorsPressedInCabin.remove(floor)
-        self._floorsCalled.remove(floor)
+            if self._floorsCalled.isEmpty && self._floorsPressedInCabin.isEmpty
+            {
+                _direction = nil
+            }
+        }
+        moveIncrementally()
+    }
 
-        if self._floorsCalled.isEmpty && self._floorsPressedInCabin.isEmpty {
-            self._direction = nil
+    private func moveIncrementally() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            stateLock.withLock {
+                if self._direction == .up {
+                    self._currentFloor += 0.1
+                } else if self._direction == .down {
+                    self._currentFloor -= 0.1
+                }
+                self._move()
+            }
         }
     }
 
@@ -165,7 +176,7 @@ class ElevatorState {
 
 extension ElevatorState: CabinControl {
     var floorButtonPressedStates: [ButtonState] {
-        queue.sync {
+        stateLock.withLock {
             Array(minFloor...maxFloor)
                 .reversed()
                 .map { floor in
@@ -180,7 +191,7 @@ extension ElevatorState: CabinControl {
     }
 
     func pressFloorInCabin(_ floor: Int) {
-        queue.async { [weak self] in
+        stateLock.withLock { [weak self] in
             guard let self else { return }
             self._floorsPressedInCabin.insert(floor)
             self._move()
@@ -190,19 +201,19 @@ extension ElevatorState: CabinControl {
 
 extension ElevatorState: FloorControl {
     var closestFloor: Int {
-        queue.sync {
+        stateLock.withLock {
             Int(round(_currentFloor))
         }
     }
 
     var direction: Direction? {
-        queue.sync {
+        stateLock.withLock {
             _direction
         }
     }
 
     func callOnFloor(_ floor: Int) {
-        queue.async { [weak self] in
+        stateLock.withLock { [weak self] in
             guard let self else { return }
             self._floorsCalled.insert(floor)
             self._move()
@@ -212,19 +223,26 @@ extension ElevatorState: FloorControl {
 
 extension ElevatorState: DispatcherControl {
     var currentFloor: Double {
-        queue.sync {
-            _currentFloor
+        get {
+            stateLock.withLock {
+                _currentFloor
+            }
+        }
+        set {
+            stateLock.withLock { [weak self] in
+                self?._currentFloor = newValue
+            }
         }
     }
 
     var isPowerOn: Bool {
-        queue.sync {
+        stateLock.withLock {
             _isPowerOn
         }
     }
 
     func togglePower() {
-        queue.async { [weak self] in
+        stateLock.withLock { [weak self] in
             guard let self else { return }
             self._isPowerOn.toggle()
 
@@ -239,7 +257,7 @@ extension ElevatorState: DispatcherControl {
 
 extension ElevatorState: Floors {
     var floorsCalledStates: [ButtonState] {
-        queue.sync {
+        stateLock.withLock {
             Array(minFloor...maxFloor)
                 .reversed()
                 .map { floor in

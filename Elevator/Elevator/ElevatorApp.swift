@@ -9,11 +9,11 @@ import SwiftUI
 
 @main
 struct ElevatorApp: App {
-    let elecatorState: ElevatorState = .init(minFloor: 1, maxFloor: 9, queue: DispatchQueue(label: "Elevator 1"))
+    let elevatorState: ElevatorState = .init(minFloor: 1, maxFloor: 9)
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(elevatorState: elevatorState)
         }
     }
 }
