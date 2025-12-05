@@ -134,6 +134,7 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
 
         switch self._direction {
         case .down:
+            // TODO: looks like we need to check that max is actually still down
             if let floor = [nearestPressedFloor, nearestCalledFloor].compactMap(\.self).max() {
                 self._moveTo(floor: floor)
             }
