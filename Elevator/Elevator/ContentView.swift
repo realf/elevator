@@ -13,9 +13,9 @@ struct ContentView: View {
     var body: some View {
         VStack {
             HStack(spacing: 40) {
-                CabinView(control: elevatorState)
-                Divider()
                 FloorsView(floors: elevatorState)
+                Divider()
+                CabinView(control: elevatorState)
             }
 
             Divider()
