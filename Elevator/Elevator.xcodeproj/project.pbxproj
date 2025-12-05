@@ -29,9 +29,22 @@
 		7586A63A2EE2F330007E4587 /* ElevatorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ElevatorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7586A6572EE328E7007E4587 /* Exceptions for "Elevator" folder in "Elevator" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Requirements.md,
+			);
+			target = 7586A6222EE2F32E007E4587 /* Elevator */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		7586A6252EE2F32E007E4587 /* Elevator */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7586A6572EE328E7007E4587 /* Exceptions for "Elevator" folder in "Elevator" target */,
+			);
 			path = Elevator;
 			sourceTree = "<group>";
 		};
