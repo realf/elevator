@@ -88,10 +88,12 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
     }
 
     func emergencyStop() {
-        // TODO: Looks like the queue is not good for this kind of behavior
         queue.async { [weak self] in
             guard let self else { return }
             self._isPowerOn = false
+            self._direction = nil
+            self._floorsPressedInCabin.removeAll()
+            self._floorsCalled.removeAll()
         }
     }
 
@@ -99,10 +101,12 @@ class ElevatorState: CabinControl, FloorControl, DispatcherControl {
         queue.async { [weak self] in
             guard let self else { return }
             self._isPowerOn.toggle()
-            self._direction = nil
 
-            _floorsPressedInCabin.removeAll()
-            _floorsCalled.removeAll()
+            if !self._isPowerOn {
+                self._direction = nil
+                _floorsPressedInCabin.removeAll()
+                _floorsCalled.removeAll()
+            }
         }
     }
 
