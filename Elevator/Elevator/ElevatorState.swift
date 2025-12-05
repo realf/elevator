@@ -145,10 +145,22 @@ class ElevatorState {
         return _nearestFloor(from: currentFloor, in: _floorsCalled)
     }
 
-    private func _nearestFloor(from currentFloor: Double, in floors: Set<Int>) -> Int? {
-        floors.compactMap(\.self).min(by: {
-            abs(Double($0) - currentFloor) < abs(Double($1) - currentFloor)
-        })
+    private func _nearestFloor(from currentFloor: Double, in floors: Set<Int>)
+        -> Int?
+    {
+        floors
+            .compactMap {
+                switch _direction {
+                case .down:
+                    Double($0) < currentFloor ? $0 : nil
+                case .up:
+                    Double($0) > currentFloor ? $0 : nil
+                case .none:
+                    $0
+                }
+            }.min {
+                abs(Double($0) - currentFloor) < abs(Double($1) - currentFloor)
+            }
     }
 
     private func _direction(from fromFloor: Double, to toFloor: Int)
