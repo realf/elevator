@@ -77,8 +77,7 @@ class ElevatorState {
     }
 
     private func call(floor: Int, controlPanel: ControlPanel) {
-        stateLock.withLock { [weak self] in
-            guard let self else { return }
+        stateLock.withLock {
             guard abs(self._currentFloor - Double(floor)) > step else { return }
 
             switch controlPanel {
@@ -323,7 +322,7 @@ extension ElevatorState: DispatcherControl {
             stateLock.withLock { _currentFloor }
         }
         set {
-            stateLock.withLock { [weak self] in self?._currentFloor = newValue }
+            stateLock.withLock { _currentFloor = newValue }
         }
     }
 
@@ -334,8 +333,7 @@ extension ElevatorState: DispatcherControl {
     }
 
     func togglePower() {
-        stateLock.withLock { [weak self] in
-            guard let self else { return }
+        stateLock.withLock {
             self._isPowerOn.toggle()
 
             if !self._isPowerOn {
