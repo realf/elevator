@@ -46,6 +46,17 @@ protocol DispatcherControl: Observable {
 
 @Observable
 class ElevatorState {
+    private enum Action {
+        case continueMoving
+        case openDoors
+        case processCalls
+    }
+
+    private enum ControlPanel {
+        case cabin
+        case floor
+    }
+
     let minFloor: Int
     let maxFloor: Int
 
@@ -58,63 +69,25 @@ class ElevatorState {
     private var _floorsCalled: Set<Int> = []
 
     private let step = 0.05
-    private let stateLock = NSLock()
-
-    enum Action {
-        case continueMoving
-        case openDoors
-        case processCalls
-    }
+    private let stateLock = NSRecursiveLock()
 
     init(minFloor: Int, maxFloor: Int) {
         self.minFloor = minFloor
         self.maxFloor = maxFloor
     }
 
-    private func _nextAction() -> Action {
-        switch self._direction {
-        case .down:
-            let pressedInCabinFloor = self._nearestPressedInCabinFloor(
-                from: self._currentFloor
-            )
-            let calledFloor = self._nearestCalledFloor(
-                from: self._currentFloor
-            )
+    private func call(floor: Int, controlPanel: ControlPanel) {
+        stateLock.withLock { [weak self] in
+            guard let self else { return }
+            guard abs(self._currentFloor - Double(floor)) > step else { return }
 
-            let floors = Set(
-                [pressedInCabinFloor, calledFloor].compactMap(\.self)
-            )
-            let floor = self._nearestFloor(
-                from: self._currentFloor,
-                in: floors
-            )
-
-            guard let floor else {
-                return .processCalls
+            switch controlPanel {
+            case .cabin:
+                self._floorsPressedInCabin.insert(floor)
+            case .floor:
+                self._floorsCalled.insert(floor)
             }
-
-            return _tryOpenDoors(floor: floor)
-
-        case .up:
-            let pressedInCabinFloor = self._nearestPressedInCabinFloor(
-                from: self._currentFloor
-            )
-
-            if let pressedInCabinFloor {
-                return _tryOpenDoors(floor: pressedInCabinFloor)
-            }
-
-            let calledFloor = self._nearestCalledFloor(
-                from: self._currentFloor
-            )
-
-            if let calledFloor {
-                return _tryOpenDoors(floor: calledFloor)
-            }
-            return .processCalls
-
-        case .none:
-            return .processCalls
+            self._startMovingIfCan()
         }
     }
 
@@ -171,7 +144,6 @@ class ElevatorState {
 
         let action = self._nextAction()
         Task {
-            // Delay to emulate opened and closed doors or elevator movement
             switch action {
             case .continueMoving:
                 try? await Task.sleep(for: .milliseconds(100))
@@ -193,6 +165,53 @@ class ElevatorState {
                     self._startMovingIfCan()
                 }
             }
+        }
+    }
+
+    private func _nextAction() -> Action {
+        switch self._direction {
+        case .down:
+            let pressedInCabinFloor = self._nearestPressedInCabinFloor(
+                from: self._currentFloor
+            )
+            let calledFloor = self._nearestCalledFloor(
+                from: self._currentFloor
+            )
+
+            let floors = Set(
+                [pressedInCabinFloor, calledFloor].compactMap(\.self)
+            )
+            let floor = self._nearestFloor(
+                from: self._currentFloor,
+                in: floors
+            )
+
+            guard let floor else {
+                return .processCalls
+            }
+
+            return _tryOpenDoors(floor: floor)
+
+        case .up:
+            let pressedInCabinFloor = self._nearestPressedInCabinFloor(
+                from: self._currentFloor
+            )
+
+            if let pressedInCabinFloor {
+                return _tryOpenDoors(floor: pressedInCabinFloor)
+            }
+
+            let calledFloor = self._nearestCalledFloor(
+                from: self._currentFloor
+            )
+
+            if let calledFloor {
+                return _tryOpenDoors(floor: calledFloor)
+            }
+            return .processCalls
+
+        case .none:
+            return .processCalls
         }
     }
 
@@ -235,25 +254,19 @@ class ElevatorState {
     {
         return fromFloor < Double(toFloor) ? .up : .down
     }
+}
 
-    private enum ControlPanel {
-        case cabin
-        case floor
+extension ElevatorState: CabinControl {
+    var floorButtonPressedStates: [ButtonState] {
+        buttonPressedStates(control: .cabin)
     }
 
-    private func callFrom(floor: Int, control: ControlPanel) {
-        stateLock.withLock { [weak self] in
-            guard let self else { return }
-            guard abs(self._currentFloor - Double(floor)) > step else { return }
+    var floorButtonsDisabled: Bool {
+        !isPowerOn
+    }
 
-            switch control {
-            case .cabin:
-                self._floorsPressedInCabin.insert(floor)
-            case .floor:
-                self._floorsCalled.insert(floor)
-            }
-            self._startMovingIfCan()
-        }
+    func pressFloorInCabin(_ floor: Int) {
+        call(floor: floor, controlPanel: .cabin)
     }
 
     private func buttonPressedStates(control: ControlPanel) -> [ButtonState] {
@@ -276,20 +289,6 @@ class ElevatorState {
     }
 }
 
-extension ElevatorState: CabinControl {
-    var floorButtonPressedStates: [ButtonState] {
-        buttonPressedStates(control: .cabin)
-    }
-
-    var floorButtonsDisabled: Bool {
-        !isPowerOn
-    }
-
-    func pressFloorInCabin(_ floor: Int) {
-        callFrom(floor: floor, control: .cabin)
-    }
-}
-
 extension ElevatorState: FloorControl {
     var stopAtFloor: Int? {
         stateLock.withLock {
@@ -298,7 +297,7 @@ extension ElevatorState: FloorControl {
     }
 
     func callOnFloor(_ floor: Int) {
-        callFrom(floor: floor, control: .floor)
+        call(floor: floor, controlPanel: .floor)
     }
 
     var floorsCalledStates: [ButtonState] {
