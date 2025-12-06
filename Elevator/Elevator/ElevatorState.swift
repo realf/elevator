@@ -28,7 +28,7 @@ protocol CabinControl: Observable {
 protocol FloorControl: Observable {
     var floorButtonsDisabled: Bool { get }
     var floorsCalledStates: [ButtonState] { get }
-    var stopAtFloor: Int? { get }
+    var stoppedAtFloor: Int? { get }
 
     func callOnFloor(_ floor: Int)
 }
@@ -63,7 +63,7 @@ class ElevatorState {
     private(set) var direction: Direction?
     private(set) var isPowerOn = true
     private(set) var currentFloor = 1.0
-    private(set) var stopAtFloor: Int?
+    private(set) var stoppedAtFloor: Int?
 
     private(set) var floorsPressedInCabin: Set<Int> = []
     private(set) var floorsCalled: Set<Int> = []
@@ -76,8 +76,6 @@ class ElevatorState {
     }
 
     private func call(floor: Int, controlPanel: ControlPanel) {
-        guard abs(self.currentFloor - Double(floor)) > step else { return }
-
         switch controlPanel {
         case .cabin:
             self.floorsPressedInCabin.insert(floor)
@@ -89,6 +87,7 @@ class ElevatorState {
 
     private func startMovingIfCan() {
         guard self.direction == nil else { return }
+        guard self.stoppedAtFloor == nil else { return }
 
         if let pressedInCabinFloor = self.nearestPressedInCabinFloor(
             from: self.currentFloor
@@ -110,7 +109,15 @@ class ElevatorState {
             }
         }
 
-        self.move()
+        if self.direction != nil {
+            self.move()
+        } else {
+            Task {
+                self.floorsPressedInCabin.remove(self.closestFloor)
+                self.floorsCalled.remove(self.closestFloor)
+                await self.cycleDoors()
+            }
+        }
     }
 
     private func move() {
@@ -122,15 +129,13 @@ class ElevatorState {
             return
         }
 
-        guard let direction = self.direction else {
-            return
-        }
-
         switch direction {
         case .up:
             self.currentFloor += step
         case .down:
             self.currentFloor -= step
+        case .none:
+            break
         }
 
         self.currentFloor = min(
@@ -141,21 +146,26 @@ class ElevatorState {
         let action = self.nextAction()
         Task { [weak self] in
             guard let self else { return }
-            
+
             switch action {
             case .continueMoving:
                 try? await Task.sleep(for: .milliseconds(100))
                 self.move()
             case .openDoors:
-                self.stopAtFloor = Int(round(self.currentFloor))
-                try? await Task.sleep(for: .milliseconds(2000))
-                self.stopAtFloor = nil
-                self.move()
+                await cycleDoors()
             case .processCalls:
                 self.direction = nil
                 self.startMovingIfCan()
             }
         }
+    }
+
+    private func cycleDoors() async {
+        guard self.stoppedAtFloor == nil else { return }
+        self.stoppedAtFloor = Int(round(self.currentFloor))
+        try? await Task.sleep(for: .milliseconds(2000))
+        self.stoppedAtFloor = nil
+        self.move()
     }
 
     private func nextAction() -> Action {
@@ -239,8 +249,9 @@ class ElevatorState {
     }
 
     private func direction(from fromFloor: Double, to toFloor: Int)
-        -> Direction
+        -> Direction?
     {
+        guard abs(fromFloor - Double(toFloor)) > step else { return nil }
         return fromFloor < Double(toFloor) ? .up : .down
     }
 }
