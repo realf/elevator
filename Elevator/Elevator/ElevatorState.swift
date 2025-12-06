@@ -28,6 +28,7 @@ protocol CabinControl: Observable {
 protocol FloorControl: Observable {
     var floorButtonsDisabled: Bool { get }
     var floorsCalledStates: [ButtonState] { get }
+    var stopAtFloor: Int? { get }
     func callOnFloor(_ floor: Int)
 }
 
@@ -51,11 +52,12 @@ class ElevatorState {
     private var _direction: Direction?
     private var _isPowerOn = true
     private var _currentFloor = 1.0
+    private var _stopAtFloor: Int?
 
     private var _floorsPressedInCabin: Set<Int> = []
     private var _floorsCalled: Set<Int> = []
 
-    private let step = 0.1
+    private let step = 0.05
     private let stateLock = NSLock()
 
     enum Action {
@@ -169,8 +171,12 @@ class ElevatorState {
                     self._move()
                 }
             case .openDoors:
-                try? await Task.sleep(for: .milliseconds(500))
                 stateLock.withLock {
+                    self._stopAtFloor = Int(round(_currentFloor))
+                }
+                try? await Task.sleep(for: .milliseconds(1000))
+                stateLock.withLock {
+                    self._stopAtFloor = nil
                     self._move()
                 }
             case .processCalls:
@@ -251,15 +257,9 @@ extension ElevatorState: CabinControl {
 }
 
 extension ElevatorState: FloorControl {
-    var closestFloor: Int {
+    var stopAtFloor: Int? {
         stateLock.withLock {
-            Int(round(_currentFloor))
-        }
-    }
-
-    var direction: Direction? {
-        stateLock.withLock {
-            _direction
+            _stopAtFloor
         }
     }
 
@@ -286,6 +286,18 @@ extension ElevatorState: FloorControl {
 }
 
 extension ElevatorState: DispatcherControl {
+    var closestFloor: Int {
+        stateLock.withLock {
+            Int(round(_currentFloor))
+        }
+    }
+
+    var direction: Direction? {
+        stateLock.withLock {
+            _direction
+        }
+    }
+
     var currentFloor: Double {
         get {
             stateLock.withLock {

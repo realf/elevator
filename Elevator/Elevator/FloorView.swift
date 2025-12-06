@@ -21,6 +21,9 @@ struct FloorView: View {
 
     var body: some View {
         HStack(spacing: 20) {
+            Image(systemName: control.stopAtFloor == floor ? "door.french.open" : "door.french.closed")
+                .font(.title)
+
             Text("\(floor)")
                 .font(.body)
 
