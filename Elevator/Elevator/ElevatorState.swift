@@ -153,7 +153,7 @@ class ElevatorState {
                 stateLock.withLock {
                     self._stopAtFloor = Int(round(_currentFloor))
                 }
-                try? await Task.sleep(for: .milliseconds(1000))
+                try? await Task.sleep(for: .milliseconds(2000))
                 stateLock.withLock {
                     self._stopAtFloor = nil
                     self._move()
