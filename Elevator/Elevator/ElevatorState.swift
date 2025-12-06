@@ -55,88 +55,143 @@ class ElevatorState {
     private var _floorsPressedInCabin: Set<Int> = []
     private var _floorsCalled: Set<Int> = []
 
-    private let moveStep = 0.1
+    private let step = 0.1
     private let stateLock = NSLock()
+
+    enum Action {
+        case continueMoving
+        case openDoors
+        case processCalls
+    }
 
     init(minFloor: Int, maxFloor: Int) {
         self.minFloor = minFloor
         self.maxFloor = maxFloor
     }
 
-    private func _move() {
-        guard self._isPowerOn else { return }
-
-        let nearestPressedFloor = self._nearestPressedFloor(
+    private func _nextAction() -> Action {
+        let pressedInCabinFloor = self._nearestPressedInCabinFloor(
             from: self._currentFloor
         )
-        let nearestCalledFloor = self._nearestCalledFloor(
+        let calledFloor = self._nearestCalledFloor(
             from: self._currentFloor
         )
 
         switch self._direction {
         case .down:
             let floors = Set(
-                [nearestPressedFloor, nearestCalledFloor].compactMap(\.self)
+                [pressedInCabinFloor, calledFloor].compactMap(\.self)
             )
-            if let floor = self._nearestFloor(
+            let floor = self._nearestFloor(
                 from: self._currentFloor,
                 in: floors
-            ) {
-                self._moveTo(floor: floor)
+            )
+
+            guard let floor else {
+                return .processCalls
             }
+
+            return _tryOpenDoors(floor: floor) ? .openDoors : .continueMoving
 
         case .up:
-            if let nearestPressedFloor {
-                self._moveTo(floor: nearestPressedFloor)
-            } else if let nearestCalledFloor {
-                self._moveTo(floor: nearestCalledFloor)
+            if let pressedInCabinFloor {
+                return _tryOpenDoors(floor: pressedInCabinFloor)
+                    ? .openDoors : .continueMoving
+            } else if let calledFloor {
+                return _tryOpenDoors(floor: calledFloor)
+                    ? .openDoors : .continueMoving
             }
+            return .processCalls
 
         case .none:
-            if let nearestPressedFloor {
-                self._direction = _direction(
+            return .processCalls
+        }
+    }
+
+    private func _startMovingIfCan() {
+        guard self._direction == nil else { return }
+
+        if let pressedInCabinFloor = self._nearestPressedInCabinFloor(
+            from: self._currentFloor
+        ) {
+            self._direction = self._direction(
+                from: _currentFloor,
+                to: pressedInCabinFloor
+            )
+        }
+
+        if self._direction == nil {
+            if let calledFloor = self._nearestCalledFloor(
+                from: self._currentFloor
+            ) {
+                self._direction = self._direction(
                     from: _currentFloor,
-                    to: nearestPressedFloor
+                    to: calledFloor
                 )
-                self._moveTo(floor: nearestPressedFloor)
-            } else if let nearestCalledFloor {
-                self._direction = _direction(
-                    from: _currentFloor,
-                    to: nearestCalledFloor
-                )
-                self._moveTo(floor: nearestCalledFloor)
+            }
+        }
+
+        self._move()
+    }
+
+    private func _move() {
+        let hasCalls =
+            !self._floorsCalled.isEmpty || !self._floorsPressedInCabin.isEmpty
+
+        guard self._isPowerOn && hasCalls else {
+            self._direction = nil
+            return
+        }
+
+        guard let direction = self._direction else {
+            return
+        }
+
+        switch direction {
+        case .up:
+            self._currentFloor += step
+        case .down:
+            self._currentFloor -= step
+        }
+
+        self._currentFloor = min(
+            max(self._currentFloor, Double(minFloor)),
+            Double(maxFloor)
+        )
+
+        let action = self._nextAction()
+        Task {
+            // Delay to emulate opened and closed doors or elevator movement
+            switch action {
+            case .continueMoving:
+                try? await Task.sleep(for: .milliseconds(100))
+                stateLock.withLock {
+                    self._move()
+                }
+            case .openDoors:
+                try? await Task.sleep(for: .milliseconds(500))
+                stateLock.withLock {
+                    self._move()
+                }
+            case .processCalls:
+                stateLock.withLock {
+                    self._direction = nil
+                    self._startMovingIfCan()
+                }
             }
         }
     }
 
-    private func _moveTo(floor: Int) {
-        if abs(self._currentFloor - Double(floor)) < self.moveStep {
+    private func _tryOpenDoors(floor: Int) -> Bool {
+        if abs(self._currentFloor - Double(floor)) < self.step {
             self._floorsPressedInCabin.remove(floor)
             self._floorsCalled.remove(floor)
-
-            if self._floorsCalled.isEmpty && self._floorsPressedInCabin.isEmpty
-            {
-                _direction = nil
-            }
+            return true
         }
-        moveIncrementally()
+        return false
     }
 
-    private func moveIncrementally() {
-        Task {
-            try? await Task.sleep(for: .milliseconds(100))
-            stateLock.withLock {
-                if self._direction == .up {
-                    self._currentFloor += 0.1
-                } else if self._direction == .down {
-                    self._currentFloor -= 0.1
-                }
-                self._move()
-            }
-        }
-    }
-
-    private func _nearestPressedFloor(from floor: Double) -> Int? {
+    private func _nearestPressedInCabinFloor(from floor: Double) -> Int? {
         return _nearestFloor(from: floor, in: _floorsPressedInCabin)
     }
 
@@ -144,16 +199,15 @@ class ElevatorState {
         return _nearestFloor(from: floor, in: _floorsCalled)
     }
 
-    private func _nearestFloor(from floor: Double, in floors: Set<Int>)
-        -> Int?
+    private func _nearestFloor(from floor: Double, in floors: Set<Int>) -> Int?
     {
         floors
             .compactMap {
                 switch _direction {
                 case .down:
-                    Double($0) < floor ? $0 : nil
+                    Double($0) <= floor ? $0 : nil
                 case .up:
-                    Double($0) > floor ? $0 : nil
+                    Double($0) >= floor ? $0 : nil
                 case .none:
                     $0
                 }
@@ -188,8 +242,10 @@ extension ElevatorState: CabinControl {
     func pressFloorInCabin(_ floor: Int) {
         stateLock.withLock { [weak self] in
             guard let self else { return }
+            guard !self._floorsPressedInCabin.contains(floor) else { return }
+
             self._floorsPressedInCabin.insert(floor)
-            self._move()
+            self._startMovingIfCan()
         }
     }
 }
@@ -210,8 +266,10 @@ extension ElevatorState: FloorControl {
     func callOnFloor(_ floor: Int) {
         stateLock.withLock { [weak self] in
             guard let self else { return }
+            guard !self._floorsCalled.contains(floor) else { return }
+
             self._floorsCalled.insert(floor)
-            self._move()
+            self._startMovingIfCan()
         }
     }
 
@@ -253,7 +311,6 @@ extension ElevatorState: DispatcherControl {
             self._isPowerOn.toggle()
 
             if !self._isPowerOn {
-                self._direction = nil
                 _floorsPressedInCabin.removeAll()
                 _floorsCalled.removeAll()
             }
