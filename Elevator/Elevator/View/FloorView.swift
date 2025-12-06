@@ -16,7 +16,11 @@ struct FloorView: View {
     var body: some View {
         HStack(spacing: 20) {
             Text("\(floor)")
-                .font(.body)
+                .bold()
+                .foregroundStyle(
+                    floor == Int(round(control.currentFloor))
+                        ? Color.orange : Color.gray
+                )
 
             Button {
                 if !isCalled {
@@ -27,13 +31,13 @@ struct FloorView: View {
             }
             .roundButton(backgroundColor: isCalled ? Color.orange : Color.gray)
 
-            let doorsOpen = control.stoppedAtFloor == floor
+            let doorsOpen = control.doorsOpenAtFloor == floor
 
             Image(
                 systemName: doorsOpen
                     ? "door.french.open" : "door.french.closed"
             )
-            .foregroundStyle(doorsOpen ? Color.orange : Color.gray)
+            .foregroundStyle(Color.gray)
             .font(.title)
             .bold()
         }

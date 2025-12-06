@@ -28,7 +28,8 @@ protocol CabinControl: Observable {
 protocol FloorControl: Observable {
     var floorButtonsDisabled: Bool { get }
     var floorsCalledStates: [ButtonState] { get }
-    var stoppedAtFloor: Int? { get }
+    var doorsOpenAtFloor: Int? { get }
+    var currentFloor: Double { get }
 
     func callOnFloor(_ floor: Int)
 }
@@ -63,7 +64,7 @@ class ElevatorState {
     private(set) var direction: Direction?
     private(set) var isPowerOn = true
     private(set) var currentFloor = 1.0
-    private(set) var stoppedAtFloor: Int?
+    private(set) var doorsOpenAtFloor: Int?
 
     private(set) var floorsPressedInCabin: Set<Int> = []
     private(set) var floorsCalled: Set<Int> = []
@@ -87,7 +88,7 @@ class ElevatorState {
 
     private func startMovingIfCan() {
         guard self.direction == nil else { return }
-        guard self.stoppedAtFloor == nil else { return }
+        guard self.doorsOpenAtFloor == nil else { return }
 
         if let pressedInCabinFloor = self.nearestPressedInCabinFloor(
             from: self.currentFloor
@@ -161,10 +162,10 @@ class ElevatorState {
     }
 
     private func cycleDoors() async {
-        guard self.stoppedAtFloor == nil else { return }
-        self.stoppedAtFloor = Int(round(self.currentFloor))
+        guard self.doorsOpenAtFloor == nil else { return }
+        self.doorsOpenAtFloor = Int(round(self.currentFloor))
         try? await Task.sleep(for: .milliseconds(2000))
-        self.stoppedAtFloor = nil
+        self.doorsOpenAtFloor = nil
         self.move()
     }
 
