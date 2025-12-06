@@ -113,7 +113,8 @@ class ElevatorState {
         if self.direction != nil {
             self.move()
         } else {
-            Task {
+            Task { [weak self] in
+                guard let self else { return }
                 self.floorsPressedInCabin.remove(self.closestFloor)
                 self.floorsCalled.remove(self.closestFloor)
                 await self.cycleDoors()
@@ -170,6 +171,15 @@ class ElevatorState {
     }
 
     private func nextAction() -> Action {
+        func tryOpenDoors(floor: Int) -> Action {
+            if abs(currentFloor - Double(floor)) < step {
+                floorsPressedInCabin.remove(floor)
+                floorsCalled.remove(floor)
+                return .openDoors
+            }
+            return .continueMoving
+        }
+
         switch self.direction {
         case .down:
             let pressedInCabinFloor = self.nearestPressedInCabinFloor(
@@ -214,15 +224,6 @@ class ElevatorState {
         case .none:
             return .processCalls
         }
-    }
-
-    private func tryOpenDoors(floor: Int) -> Action {
-        if abs(self.currentFloor - Double(floor)) < self.step {
-            self.floorsPressedInCabin.remove(floor)
-            self.floorsCalled.remove(floor)
-            return .openDoors
-        }
-        return .continueMoving
     }
 
     private func nearestPressedInCabinFloor(from floor: Double) -> Int? {
