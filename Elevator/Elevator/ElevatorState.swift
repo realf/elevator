@@ -29,13 +29,13 @@ protocol FloorControl: Observable {
     var floorButtonsDisabled: Bool { get }
     var floorsCalledStates: [ButtonState] { get }
     var stopAtFloor: Int? { get }
+
     func callOnFloor(_ floor: Int)
 }
 
 protocol DispatcherControl: Observable {
     var isPowerOn: Bool { get }
     var currentFloor: Double { get }
-
     var closestFloor: Int { get }
     var minFloor: Int { get }
     var maxFloor: Int { get }
